@@ -6,14 +6,14 @@
  *      Derived from code by Ewa Syta
  */
 
+#include "crypto.hpp"
 #include <stdexcept>
 #include <fstream>
 #include <algorithm>
-#include "crypto.hpp"
 #include "exception.hpp"
 
-//-------------------------------------------------------------------
-Crypto::Crypto(unsigned int seed = defaultSeed) :
+// Remove default argument here since it's already in the header
+Crypto::Crypto(unsigned int seed) :
     rng(seed), key(AES_128::keyLength), iv(AES_128::blockSize) {
     for (unsigned k = 0; k < NUM_KEY_SHARES; k++)
         keyShare[k].resize(AES_128::keyLength);

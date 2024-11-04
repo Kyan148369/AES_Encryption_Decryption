@@ -10,7 +10,6 @@
 #include "crypto.hpp"
 
 int main(int argc, char* argv[]) {
-    Botan::LibraryInitializer init;
 
     try {
         unsigned int seed = time(NULL);

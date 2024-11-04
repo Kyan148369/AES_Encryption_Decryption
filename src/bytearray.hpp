@@ -15,7 +15,7 @@ typedef unsigned char byte;
 /* ByteArray is an adaptor to the standard container vector<byte>.
  * It augments vector with various I/O and random byte functions.
  * The element type is a raw 8-bit byte, defined to be an unsigned char.
- * This is consistent with the needs of Botan::Pipe.
+ * This is consistent with the needs of ::Pipe.
  */
 class ByteArray : public vector<byte> {
 private:

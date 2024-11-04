@@ -8,7 +8,6 @@
 #include "analyze.hpp"
 
 int main( int argc, char* argv[]) {
-    Botan::LibraryInitializer init;
 
     try {
         Analyze anal;

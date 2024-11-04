@@ -7,12 +7,14 @@
  */
 
 #pragma once
-#include <botan/botan.h>
+#include <openssl/evp.h>
+#include <openssl/aes.h>
+#include <openssl/err.h>
+#include "bytearray.hpp"
+#include "prng.hpp"
 #include "bytearray.hpp"
 using namespace std;
 
-#include "bytearray.hpp"
-#include "prng.hpp"
 
 /* Wrapper class for Botan's implementation of AES-128/CBC.
  * It encrypts and decrypts raw ByteArray data.
@@ -22,24 +24,24 @@ using namespace std;
 
 class AES_128 {
 public:
-    static const unsigned int keyLength;
-    static const unsigned int blockSize;
+    static const unsigned int keyLength; // 128 bits 
+    static const unsigned int blockSize; // 128 bits
 private:
-    Botan::SymmetricKey bkey;
-    Botan::InitializationVector biv;
+    ByteArray key;
+    ByteArray iv;
+    EVP_CIPHER_CTX *ctx;  // OpenSSL context
+
 
 public:
-    AES_128() {
-    }
+    AES_128();
+    ~AES_128();
+
+
     void encrypt( const ByteArray& plaintext, ByteArray& ciphertext );
     void decrypt( const ByteArray& ciphertext, ByteArray& plaintext );
     void zeroPad(ByteArray& plaintext);
     void zeroUnPad(ByteArray& plaintext);
 
-    void setKey( const ByteArray& key ) {
-        bkey.change(key.data(), key.size());
-    }
-    void setIV( const ByteArray& iv ) {
-        biv.change(iv.data(), iv.size());
-    }
+    void setKey( const ByteArray& key );
+    void setIV( const ByteArray& iv );
 };

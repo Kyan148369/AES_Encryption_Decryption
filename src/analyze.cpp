@@ -88,3 +88,81 @@ void Analyze::readIVCiphertext(const char* inFile) {
     ciphertext.readAllBytes(in);
     in.close();
 }
+
+
+// Calculates divergence between frequency distributions
+double Analyze::divergence(const ByteArray& text) const {
+    double sum = 0.0;
+    int letterCounts[ALPHABETSIZE] = {0};  // Array to store character frequencies
+    int totalChars = 0;                    // Total number of characters
+
+    // Count frequency of each character in the text
+    for (unsigned char c : text) {
+        letterCounts[c]++;
+        totalChars++;
+    }
+
+    // If text is empty, return very large divergence
+    if (totalChars == 0) {
+        return TINY_VAL;
+    }
+
+    // Calculate divergence using sum of squared differences
+    // between normalized frequencies and expected probabilities
+    for (int i = 0; i < ALPHABETSIZE; i++) {
+        double observed = static_cast<double>(letterCounts[i]) / totalChars;
+        double expected = dist[i];  // Expected probability from frequency table
+        double diff = observed - expected;
+        sum += diff * diff;  // Square the difference
+    }
+
+    return -sum;  // Negative because we want to maximize similarity
+}
+
+// Tries all possible key pairs to find the one that produces
+// most likely plaintext based on character frequencies
+void Analyze::guessKey() {
+    double bestScore = TINY_VAL;
+    ByteArray currentKey(AES_128::keyLength);
+    ByteArray tempPlaintext;
+    
+    cipher.setIV(iv);  // Set the IV from the ciphertext
+
+    // Try all possible pairs of key shares
+    for (unsigned int i = 0; i < NUM_KEY_SHARES; i++) {
+        for (unsigned int j = i + 1; j < NUM_KEY_SHARES; j++) {
+            // Compute trial key as XOR of two shares
+            currentKey = keyShare[i];
+            currentKey ^ keyShare[j];  // XOR with second share
+            
+            try {
+                // Set up cipher with trial key
+                cipher.setKey(currentKey);
+                
+                // Try to decrypt
+                cipher.decrypt(ciphertext, tempPlaintext);
+                
+                // Calculate how well the decryption matches expected frequencies
+                double score = divergence(tempPlaintext);
+                
+                // Update best key if this produces better match
+                if (score > bestScore) {
+                    bestScore = score;
+                    key = currentKey;
+                    keyIndex1 = i;
+                    keyIndex2 = j;
+                    plaintext = tempPlaintext;  // Save best plaintext
+                }
+            }
+            catch (const CryptoException& e) {
+                // Skip invalid decryptions
+                continue;
+            }
+        }
+    }
+
+    // If no valid decryption found
+    if (bestScore == TINY_VAL) {
+        throw CryptoException("No valid decryption found");
+    }
+}

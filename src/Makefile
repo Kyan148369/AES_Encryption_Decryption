@@ -1,37 +1,32 @@
-# Compile with debug option and all warnings on. ------------
-CXXFLAGS = -g -Wall -O1
-LIBS = -lbotan
+# Compiler flags
+CXXFLAGS = -g -Wall -O1 -std=c++11
 
-# Object modules comprising this application ----------------
-OBJ = aes.o bytearray.o dist.o prng.o
-OBJ-SO = $(OBJ) snakeoil.o crypto.o
-OBF-BF = $(OBJ) bruteforce.o analyze.o
+# For Apple Silicon (M1/M2) Macs
+CXXFLAGS += -I/opt/homebrew/opt/openssl@3/include
+LDFLAGS = -L/opt/homebrew/opt/openssl@3/lib
 
-# Build targets
-TARGETS = snakeoil bruteforce
+# Libraries
+LIBS = -lcrypto -lssl
 
-.PHONY: all clean
-all: $(TARGETS)
+# Source files
+SOURCES = aes.cpp analyze.cpp bytearray.cpp crypto.cpp dist.cpp prng.cpp
 
-snakeoil: $(OBJ-SO)
-	$(CXX)  -o $@ $(OBJ-SO) $(LIBS)
+# Object files
+OBJECTS = $(SOURCES:.cpp=.o)
 
-bruteforce: $(OBF-BF)
-	$(CXX)  -o $@ $(CXXFLAGS) $(OBF-BF) $(LIBS)
+# Executables
+PROGS = snakeoil bruteforce
 
-# Delete .o and exe files and force recompilation. ----------
+all: $(PROGS)
+
+snakeoil: snakeoil.o $(OBJECTS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+bruteforce: bruteforce.o $(OBJECTS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $<
+
 clean:
-	rm -f $(OBJ-SO) $(OBF-BF) $(TARGETS)
-
-# Dependencies ----------------------------------------------
-aes.o: aes.cpp aes.hpp bytearray.hpp prng.hpp exception.hpp
-analyze.o: analyze.cpp aes.hpp bytearray.hpp prng.hpp analyze.hpp \
- dist.hpp exception.hpp
-bruteforce.o: bruteforce.cpp analyze.hpp aes.hpp bytearray.hpp prng.hpp \
- dist.hpp
-bytearray.o: bytearray.cpp bytearray.hpp prng.hpp exception.hpp
-crypto.o: crypto.cpp crypto.hpp aes.hpp bytearray.hpp prng.hpp \
- exception.hpp
-dist.o: dist.cpp dist.hpp exception.hpp
-prng.o: prng.cpp prng.hpp
-snakeoil.o: snakeoil.cpp crypto.hpp aes.hpp bytearray.hpp prng.hpp
+	rm -f *.o $(PROGS)

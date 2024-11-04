@@ -15,36 +15,108 @@
 const unsigned int AES_128::keyLength = 16;
 const unsigned int AES_128::blockSize = 16;
 
+
+// Constructor to initialise object
+AES_128::AES_128() {
+    OpenSSL_add_all_algorithms();
+    ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        throw CryptoException("Failed to create cipher context");
+    }
+}
+
+// Destructor to delete an object 
+AES_128::~AES_128() {
+    if (ctx) {
+        // ctx is openssls context structure that holds all encryption/decryption state
+        EVP_CIPHER_CTX_free(ctx);
+    }
+    EVP_cleanup();
+}
+
+
+
 //-----------------------------------------------------------------------
 // Encrypts an arbitrary size plaintext using AES-128/CBC/NoPadding.
 // Precondition:  the key and iv must have been previously set.
 void AES_128::encrypt(const ByteArray& plaintext, ByteArray& ciphertext) {
+      // Initialize encryption operation
+    if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_cbc(), NULL, 
+                              reinterpret_cast<const unsigned char*>(key.data()),
+                              reinterpret_cast<const unsigned char*>(iv.data()))) {
+        throw CryptoException("Failed to initialize encryption");
+    }
+
+    // Disable OpenSSL's padding - we use our own
+    EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    // Create padded copy of plaintext
     ByteArray padded(plaintext);
     zeroPad(padded);
-    Botan::Pipe enc(
-            Botan::get_cipher("AES-128/CBC/NoPadding", bkey, biv,
-                    Botan::ENCRYPTION));
-    enc.process_msg(padded.data(), padded.size()); //Puts the plaintext to the pipe
-    //ciphertext = enc.read_all_as_string(); //Extracts the ciphertext0
-    ciphertext.resize(enc.remaining()); // #bytes in pipe
-    unsigned n = enc.read(&ciphertext.front(), ciphertext.size()); //Extracts the ciphertext
-    if (n != ciphertext.size())
-        throw CryptoException(
-                "encrypt: failed to read expected # bytes from pipe");
+
+    // Prepare output buffer
+    ciphertext.resize(padded.size() + blockSize);
+    int len = 0, ciphertext_len = 0;
+
+    // Perform encryption
+    if(1 != EVP_EncryptUpdate(ctx, 
+                             reinterpret_cast<unsigned char*>(&ciphertext[0]), &len,
+                             reinterpret_cast<const unsigned char*>(padded.data()),
+                             padded.size())) {
+        throw CryptoException("Failed during encryption");
+    }
+    ciphertext_len = len;
+
+    // Finalize encryption
+    if(1 != EVP_EncryptFinal_ex(ctx, 
+                               reinterpret_cast<unsigned char*>(&ciphertext[ciphertext_len]),
+                               &len)) {
+        throw CryptoException("Failed to finalize encryption");
+    }
+    ciphertext_len += len;
+
+    // Resize to actual output size
+    ciphertext.resize(ciphertext_len);
 }
 //-----------------------------------------------------------------------
 // Decrypts an arbitrary size ciphertext using AES-128/CBC/NoPadding.
 // Precondition:  the key and iv must have been previously set.
 void AES_128::decrypt(const ByteArray& ciphertext, ByteArray& plaintext) {
-    Botan::Pipe dec(
-            Botan::get_cipher("AES-128/CBC/NoPadding", bkey, biv,
-                    Botan::DECRYPTION));
-    dec.process_msg(ciphertext.data(), ciphertext.size()); //Puts the ciphertext to the pipe
-    plaintext.resize(dec.remaining()); // #bytes in pipe
-    unsigned n = dec.read(&plaintext.front(), plaintext.size()); //Extracts the plaintext
-    if (n != plaintext.size())
-        throw CryptoException(
-                "decrypt: failed to read expected # bytes from pipe");
+    // Initialize decryption operation
+    if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_cbc(), NULL,
+                              reinterpret_cast<const unsigned char*>(key.data()),
+                              reinterpret_cast<const unsigned char*>(iv.data()))) {
+        throw CryptoException("Failed to initialize decryption");
+    }
+
+    // Disable OpenSSL's padding - we use our own
+    EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    // Prepare output buffer
+    plaintext.resize(ciphertext.size() + blockSize);
+    int len = 0, plaintext_len = 0;
+
+    // Perform decryption
+    if(1 != EVP_DecryptUpdate(ctx,
+                             reinterpret_cast<unsigned char*>(&plaintext[0]), &len,
+                             reinterpret_cast<const unsigned char*>(ciphertext.data()),
+                             ciphertext.size())) {
+        throw CryptoException("Failed during decryption");
+    }
+    plaintext_len = len;
+
+    // Finalize decryption
+    if(1 != EVP_DecryptFinal_ex(ctx,
+                               reinterpret_cast<unsigned char*>(&plaintext[plaintext_len]),
+                               &len)) {
+        throw CryptoException("Failed to finalize decryption");
+    }
+    plaintext_len += len;
+
+    // Resize to actual size
+    plaintext.resize(plaintext_len);
+
+    // Remove padding
     zeroUnPad(plaintext);
 }
 
@@ -60,4 +132,13 @@ void AES_128::zeroUnPad(ByteArray& plaintext) {
     while (plaintext.size() > 0 && plaintext.back() == 0) {
         plaintext.pop_back();
     }
+}
+
+// In aes.cpp:
+void AES_128::setKey(const ByteArray& key) {
+    this->key = key;
+}
+
+void AES_128::setIV(const ByteArray& iv) {
+    this->iv = iv;
 }
